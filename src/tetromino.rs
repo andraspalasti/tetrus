@@ -26,6 +26,10 @@ impl Tetromino {
         TETROMINOS[idx].clone()
     }
 
+    pub fn color(self: &Self) -> Colors {
+        self.color.clone()
+    }
+
     pub fn blocks(self: &Self) -> u16 {
         self.blocks[self.dir]
     }
