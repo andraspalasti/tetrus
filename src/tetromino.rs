@@ -45,24 +45,36 @@ impl Tetromino {
             self.dir += 1;
         }
     }
+}
 
-    pub fn each_block<F>(self: &Self, mut func: F)
-    where
-        F: FnMut(i32, i32),
-    {
-        let blocks = self.blocks();
-        let (mut dx, mut dy) = (0, 0);
-        for i in 0..16 {
-            if blocks & (0x8000 >> i) != 0 {
-                func(dx, dy);
-            }
+impl IntoIterator for Tetromino {
+    type Item = (i32, i32);
+    type IntoIter = TetrominoIter;
 
-            dx += 1;
-            if dx == 4 {
-                dx = 0;
-                dy += 1;
+    fn into_iter(self: Self) -> Self::IntoIter {
+        return TetrominoIter {
+            blocks: self.blocks(),
+            idx: 0,
+        };
+    }
+}
+
+pub struct TetrominoIter {
+    blocks: u16,
+    idx: i32,
+}
+
+impl Iterator for TetrominoIter {
+    type Item = (i32, i32);
+
+    fn next(self: &mut Self) -> Option<Self::Item> {
+        for i in self.idx..16 {
+            if self.blocks & (0x8000 >> i) != 0 {
+                self.idx = i + 1;
+                return Some((i % 4, i / 4));
             }
         }
+        None
     }
 }
 
@@ -70,36 +82,36 @@ const TETROMINOS: [Tetromino; 7] = [
     Tetromino {
         color: Colors::Cyan,
         dir: 0,
-        blocks: [0, 0, 0, 0],
+        blocks: [0x0F00, 0x2222, 0x00F0, 0x4444],
     },
     Tetromino {
         color: Colors::Blue,
         dir: 0,
-        blocks: [0, 0, 0, 0],
+        blocks: [0x44C0, 0x8E00, 0x6440, 0x0E20],
     },
     Tetromino {
         color: Colors::Orange,
         dir: 0,
-        blocks: [0, 0, 0, 0],
+        blocks: [0x4460, 0x0E80, 0xC440, 0x2E00],
     },
     Tetromino {
         color: Colors::Yellow,
         dir: 0,
-        blocks: [0, 0, 0, 0],
+        blocks: [0xCC00, 0xCC00, 0xCC00, 0xCC00],
     },
     Tetromino {
         color: Colors::Green,
         dir: 0,
-        blocks: [0, 0, 0, 0],
+        blocks: [0x06C0, 0x8C40, 0x6C00, 0x4620],
     },
     Tetromino {
         color: Colors::Purple,
         dir: 0,
-        blocks: [0, 0, 0, 0],
+        blocks: [0x0E40, 0x4C40, 0x4E00, 0x4640],
     },
     Tetromino {
         color: Colors::Red,
         dir: 0,
-        blocks: [0, 0, 0, 0],
+        blocks: [0x0C60, 0x4C80, 0xC600, 0x2640],
     },
 ];

@@ -17,7 +17,7 @@ impl Game {
             return Err("The height of the game has to be at least 20 blocks");
         }
         Ok(Game {
-            offset: ((w / 2).try_into().unwrap(), 0),
+            offset: ((w / 2) as i32 - 1, 0),
             curr_piece: Tetromino::new(),
             board: vec![vec![Colors::None; w]; h],
         })
@@ -25,6 +25,10 @@ impl Game {
 
     pub fn board(self: &Self) -> &Vec<Vec<Colors>> {
         &self.board
+    }
+
+    pub fn offset(self: &Self) -> &(i32, i32) {
+        &self.offset
     }
 
     pub fn piece(self: &Self) -> &Tetromino {
@@ -64,10 +68,11 @@ impl Game {
         }
 
         // move the colors from the piece to the board
-        self.curr_piece.each_block(|dx, dy| {
+        let coords = self.curr_piece.clone().into_iter();
+        for (dx, dy) in coords {
             self.board[(self.offset.1 + dy) as usize][(self.offset.0 + dx) as usize] =
                 self.curr_piece.color();
-        });
+        }
 
         // check for full rows
         for i in 0..self.board.len() {
@@ -89,27 +94,16 @@ impl Game {
     }
 
     fn is_occupied(self: &Self, x: i32, y: i32) -> bool {
-        let mut result = false;
-        self.curr_piece.each_block(|dx, dy| {
-            if result {
-                return;
+        let coords = self.curr_piece.clone().into_iter();
+        for (dx, dy) in coords {
+            let offset = ((x + dx) as usize, (y + dy) as usize);
+            if self.board.len() <= offset.1
+                || self.board[0].len() <= offset.0
+                || self.board[offset.1][offset.0] != Colors::None
+            {
+                return true;
             }
-
-            if x + dx < 0 || y + dy < 0 {
-                result = true;
-                return;
-            }
-
-            let block = self
-                .board
-                .get((x + dx) as usize)
-                .and_then(|row| row.get((y + dy) as usize));
-            match block {
-                Some(color) if color != &Colors::None => result = true,
-                None => result = true,
-                _ => (),
-            }
-        });
-        result
+        }
+        false
     }
 }
