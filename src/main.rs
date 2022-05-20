@@ -2,88 +2,150 @@ mod game;
 mod tetromino;
 
 use crossterm::{
-    cursor, execute,
-    style::{Color, Print, SetBackgroundColor},
-    terminal,
+    cursor,
+    event::{poll, read, Event, KeyCode, KeyModifiers},
+    execute, queue,
+    style::{self, Print},
+    terminal::{
+        disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen,
+        LeaveAlternateScreen,
+    },
 };
-use game::Game;
+
 use std::{
-    io::{stdout, Write},
-    thread::sleep,
-    time::Duration,
+    io::{stdout, Stdout, Write},
+    time::{Duration, Instant},
 };
-use tetromino::{Colors, Tetromino};
+
+use tetromino::Tetromino;
+
+use crate::game::Game;
 
 fn main() -> crossterm::Result<()> {
     let mut stdout = stdout();
-
-    // setup: clear terminal and hide cursor
     execute!(
         stdout,
+        EnterAlternateScreen,
         cursor::Hide,
-        terminal::Clear(terminal::ClearType::All)
+        cursor::MoveTo(0, 0)
     )?;
+    enable_raw_mode()?;
 
-    let game = Game::new(10, 20).unwrap();
+    let mut game = Game::new();
 
-    draw_game(&mut stdout, &game)?;
-    sleep(Duration::from_millis(5000));
-    stdout.flush()?;
+    let mut time = Instant::now();
 
-    // teardown: reset background color,
-    // reset cursor position, show cursor, clear terminal
-    execute!(
-        stdout,
-        SetBackgroundColor(Color::Reset),
-        cursor::MoveTo(0, 0),
-        cursor::Show,
-        terminal::Clear(terminal::ClearType::All)
-    )?;
-    Ok(())
-}
+    loop {
+        if is_event_available()? {
+            match read()? {
+                Event::Key(event) => {
+                    if event.code == KeyCode::Char('c') && event.modifiers == KeyModifiers::CONTROL
+                    {
+                        break;
+                    }
 
-fn draw_game(stdout: &mut std::io::Stdout, game: &Game) -> crossterm::Result<()> {
-    execute!(stdout, cursor::MoveTo(0, 0))?;
-    for row in game.board() {
-        for c in row {
-            execute!(stdout, SetBackgroundColor(c_to_ctc(c)), Print(" ."))?;
+                    match event.code {
+                        KeyCode::Esc => break,
+                        KeyCode::Left => game.move_left(),
+                        KeyCode::Right => game.move_right(),
+                        KeyCode::Up => game.rotate_piece(),
+                        KeyCode::Down => game.move_down(),
+                        _ => (),
+                    }
+                }
+                _ => (),
+            }
         }
-        execute!(stdout, cursor::MoveToNextLine(1))?;
+
+        execute!(stdout, Clear(ClearType::All))?;
+        draw_box(&mut stdout, (0, 0), 2 + game.width() as u16 * 2, 2 + game.height() as u16)?;
+        draw_game(&mut stdout, &game, (1, 1))?;
+
+        if 800 < time.elapsed().as_millis() {
+            game.tick();
+            time = Instant::now();
+        }
     }
 
-    draw_piece(stdout, game.offset(), game.piece())?;
-
-    Ok(())
+    disable_raw_mode()?;
+    execute!(stdout, cursor::Show, LeaveAlternateScreen)
 }
 
-fn draw_piece(
-    stdout: &mut std::io::Stdout,
-    offset: &(i32, i32),
-    piece: &Tetromino,
-) -> crossterm::Result<()> {
-    let coords = piece.clone().into_iter();
-    for (dx, dy) in coords {
-        execute!(
+fn is_event_available() -> crossterm::Result<bool> {
+    poll(Duration::from_millis(50))
+}
+
+fn draw_game(stdout: &mut Stdout, game: &Game, offset: (u16, u16)) -> crossterm::Result<()> {
+    queue!(stdout, cursor::MoveTo(offset.0, offset.1))?;
+    for row in game.board() {
+        for color in row {
+            queue!(
+                stdout,
+                style::SetBackgroundColor(color.ctcolor()),
+                Print(" .")
+            )?;
+        }
+        queue!(
             stdout,
-            cursor::MoveTo(2 * ((offset.0 + dx) as u16), (offset.1 + dy) as u16),
-            SetBackgroundColor(c_to_ctc(&piece.color())),
-            Print("  ")
+            cursor::MoveDown(1),
+            cursor::MoveToColumn(1 + offset.0)
         )?;
     }
-    Ok(())
+    let piece_offset = (
+        game.offset().0 + (offset.0 as i32),
+        game.offset().1 + (offset.1 as i32),
+    );
+    draw_piece(stdout, game.piece(), piece_offset)
 }
 
-/// Color to crossterm color
-fn c_to_ctc(c: &Colors) -> crossterm::style::Color {
-    use crossterm::style::Color::*;
-    match c {
-        Colors::Cyan => Cyan,
-        Colors::Blue => Blue,
-        Colors::Orange => DarkYellow,
-        Colors::Yellow => Yellow,
-        Colors::Green => Green,
-        Colors::Purple => Magenta,
-        Colors::Red => Red,
-        _ => Reset,
+fn draw_piece(stdout: &mut Stdout, piece: &Tetromino, offset: (i32, i32)) -> crossterm::Result<()> {
+    queue!(stdout, style::SetBackgroundColor(piece.color().ctcolor()))?;
+    for (dx, dy) in piece.clone() {
+        queue!(
+            stdout,
+            cursor::MoveTo(((offset.0 + dx) * 2 - 1) as u16, (offset.1 + dy) as u16),
+            Print("  "),
+        )?;
     }
+    queue!(stdout, style::SetBackgroundColor(style::Color::Reset))?;
+    stdout.flush()
+}
+
+fn draw_box(stdout: &mut Stdout, offset: (u16, u16), w: u16, h: u16) -> crossterm::Result<()> {
+    // corners of the box
+    queue!(
+        stdout,
+        style::SetBackgroundColor(style::Color::Reset),
+        cursor::MoveTo(offset.0, offset.1),
+        Print("┌"),
+        cursor::MoveTo(offset.0 + w - 1, offset.1),
+        Print("┐"),
+        cursor::MoveTo(offset.0, offset.1 + h - 1),
+        Print("└"),
+        cursor::MoveTo(offset.0 + w - 1, offset.1 + h - 1),
+        Print("┘")
+    )?;
+
+    // horizontal lines
+    for i in 2..w {
+        queue!(
+            stdout,
+            cursor::MoveTo(offset.0 + i - 1, offset.1),
+            Print("─"),
+            cursor::MoveTo(offset.0 + i - 1, offset.1 + h - 1),
+            Print("─")
+        )?;
+    }
+
+    // vertical lines
+    for i in 2..h {
+        queue!(
+            stdout,
+            cursor::MoveTo(offset.0, offset.1 + i - 1),
+            Print("│"),
+            cursor::MoveTo(offset.0 + w - 1, offset.1 + i - 1),
+            Print("│")
+        )?;
+    }
+    stdout.flush()
 }

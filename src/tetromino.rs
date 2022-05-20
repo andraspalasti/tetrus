@@ -1,7 +1,9 @@
 use rand::Rng;
 
-#[derive(Clone, PartialEq, Eq)]
-pub enum Colors {
+use crossterm::style;
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum Color {
     None,
     Cyan,
     Blue,
@@ -12,9 +14,25 @@ pub enum Colors {
     Red,
 }
 
-#[derive(Clone)]
+impl Color {
+    /// Returns the associated crossterm color
+    pub fn ctcolor(self: &Self) -> style::Color {
+        match self {
+            &Self::Cyan => style::Color::Cyan,
+            &Self::Blue => style::Color::Blue,
+            &Self::Orange => style::Color::DarkYellow,
+            &Self::Yellow => style::Color::Yellow,
+            &Self::Green => style::Color::Green,
+            &Self::Purple => style::Color::Magenta,
+            &Self::Red => style::Color::Red,
+            _ => style::Color::Reset,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct Tetromino {
-    color: Colors,
+    color: Color,
     dir: usize,
     blocks: [u16; 4],
 }
@@ -26,7 +44,7 @@ impl Tetromino {
         TETROMINOS[idx].clone()
     }
 
-    pub fn color(self: &Self) -> Colors {
+    pub fn color(self: &Self) -> Color {
         self.color.clone()
     }
 
@@ -39,10 +57,10 @@ impl Tetromino {
     }
 
     pub fn rotate_back(self: &mut Self) {
-        if self.dir == self.blocks.len() - 1 {
-            self.dir = 0;
+        if self.dir == 0 {
+            self.dir = self.blocks.len() - 1;
         } else {
-            self.dir += 1;
+            self.dir -= 1;
         }
     }
 }
@@ -69,7 +87,7 @@ impl Iterator for TetrominoIter {
 
     fn next(self: &mut Self) -> Option<Self::Item> {
         for i in self.idx..16 {
-            if self.blocks & (0x8000 >> i) != 0 {
+            if (self.blocks & (0x8000 >> i)) != 0 {
                 self.idx = i + 1;
                 return Some((i % 4, i / 4));
             }
@@ -80,37 +98,37 @@ impl Iterator for TetrominoIter {
 
 const TETROMINOS: [Tetromino; 7] = [
     Tetromino {
-        color: Colors::Cyan,
+        color: Color::Cyan,
         dir: 0,
         blocks: [0x0F00, 0x2222, 0x00F0, 0x4444],
     },
     Tetromino {
-        color: Colors::Blue,
+        color: Color::Blue,
         dir: 0,
         blocks: [0x44C0, 0x8E00, 0x6440, 0x0E20],
     },
     Tetromino {
-        color: Colors::Orange,
+        color: Color::Orange,
         dir: 0,
         blocks: [0x4460, 0x0E80, 0xC440, 0x2E00],
     },
     Tetromino {
-        color: Colors::Yellow,
+        color: Color::Yellow,
         dir: 0,
         blocks: [0xCC00, 0xCC00, 0xCC00, 0xCC00],
     },
     Tetromino {
-        color: Colors::Green,
+        color: Color::Green,
         dir: 0,
         blocks: [0x06C0, 0x8C40, 0x6C00, 0x4620],
     },
     Tetromino {
-        color: Colors::Purple,
+        color: Color::Purple,
         dir: 0,
         blocks: [0x0E40, 0x4C40, 0x4E00, 0x4640],
     },
     Tetromino {
-        color: Colors::Red,
+        color: Color::Red,
         dir: 0,
         blocks: [0x0C60, 0x4C80, 0xC600, 0x2640],
     },
